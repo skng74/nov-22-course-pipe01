@@ -1,0 +1,82 @@
+# Execute manually for exploration purposes
+# This particular pipeline should not be run behind GitHub events such as push or PR
+trigger: none
+# for production projects, the recommended trigger is peridical, once a week
+# Ideally, this pipeline should run behind a notification that a new pertinent fix is available
+# Follow https://webmethods.ideas.aha.io/ideas/OT-I-21 if this aspect is important for your context
+
+# This is a Sunday at 1 AM schedule
+schedules:
+- cron: "0 1 * * 0"
+  displayName: Weekly Sunday build
+  branches:
+    include:
+    - main
+  always: true # i.e. trigger even if there are no changes in the repo, necessary in our case
+
+pool:
+  name: WmDevOpsTutorialAgentsPool
+  vmImage: Canonical:0001-com-ubuntu-confidential-vm-focal:20_04-lts-gen2:latest
+
+variables:
+  - group: ProductImageBuild.Options
+
+steps:
+- script: chmod u+x ./*.sh
+  displayName: "Grant shell execution permissions"
+
+# get SUIF
+- script: |
+    export MY_SUIF_TAG="$(MY_SUIF_TAG)"
+    ./01.getSUIF.sh
+  displayName: 'Get SUIF'
+
+# get SA share secrets
+- task: DownloadSecureFile@1
+  name: SASecureInfo
+  displayName: 'Download secure information for images share'
+  inputs:
+    secureFile: 'sa.share.secrets.sh'
+
+# mount SA share
+- script: ./02.mountImagesShare.sh
+  displayName: 'Mount images share'
+
+# update ubuntu machine
+- script: ./03.prepareAgentMachine.sh
+  displayName: 'System software preparation'
+
+# assure installation binaries
+- script: ./04.assureInstallBinaries.sh
+  displayName: 'Assure installation binaries'
+
+# get SDC Credentials
+- task: DownloadSecureFile@1
+  name: SDCCredentials
+  displayName: 'Download SDC credentials'
+  inputs:
+    secureFile: 'sdc.credentials.sh'
+
+# Boostrap Update Manager
+- script: ./05.installSUM.sh
+  displayName: 'Install SUM'
+
+# Build Images
+- script: |
+    export MY_SUIF_TAG="$(MY_SUIF_TAG)"
+    export MY_templates="$(MY_templates)"
+    export SUIF_DEBUG_ON="$(SUIF_DEBUG_ON)"
+    ./06.buildSagImages.sh
+  displayName: 'Build Images'
+
+# Save audit on share 
+# HINT: you might use this step only for debug purposes
+# HINT: without this step the mount may be done in readonly mode
+- script: ./11.saveAudit.sh
+  displayName: 'Save Audit on Share'
+  condition: always()
+
+# umount SA share
+- script: ./12.unmountShare.sh
+  displayName: 'Unmount images share'
+  condition: always()
