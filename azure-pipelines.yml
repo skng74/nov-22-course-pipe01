@@ -15,7 +15,7 @@ schedules:
   always: true # i.e. trigger even if there are no changes in the repo, necessary in our case
 
 pool:
-  name: WmDevOpsTutorialAgentsPool
+  name: Nov22CourseAgents
   vmImage: Canonical:0001-com-ubuntu-confidential-vm-focal:20_04-lts-gen2:latest
 
 variables:
